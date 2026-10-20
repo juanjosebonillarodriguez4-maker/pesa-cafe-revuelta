@@ -1,0 +1,48 @@
+
+name: Crear APK PESA CAFE REVUELTA
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'PesaCafeRevueltaAndroid.zip'
+      - '.github/workflows/build.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar proyecto
+        uses: actions/checkout@v4
+
+      - name: Preparar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Preparar Android
+        uses: android-actions/setup-android@v3
+
+      - name: Descomprimir proyecto
+        run: |
+          unzip -o PesaCafeRevueltaAndroid.zip -d proyecto
+          find proyecto -name settings.gradle -print
+
+      - name: Instalar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Compilar APK
+        run: |
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          cd "$(dirname "$(find proyecto -name settings.gradle | head -n 1)")"
+          gradle assembleDebug
+
+      - name: Guardar APK para descargar
+        uses: actions/upload-artifact@v4
+        with:
+          name: PESA-CAFE-REVUELTA-APK
+          path: proyecto/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
