@@ -22,7 +22,10 @@ jobs:
           java-version: '17'
 
       - name: Preparar Android
-        uses: android-actions/setup-android@v3
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f
+          yes | "$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)" --licenses || true
 
       - name: Descomprimir proyecto
         run: |
@@ -36,7 +39,8 @@ jobs:
 
       - name: Compilar APK
         run: |
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)"
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
           cd "$(dirname "$(find proyecto -name settings.gradle | head -n 1)")"
           gradle assembleDebug
 
