@@ -1,4 +1,3 @@
-
 name: Crear APK PESA CAFE REVUELTA
 
 on:
@@ -11,6 +10,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Descargar proyecto
         uses: actions/checkout@v4
@@ -24,24 +24,94 @@ jobs:
       - name: Preparar Android
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"
-          find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f
-          yes | "$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)" --licenses || true
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)"
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses || true
 
       - name: Descomprimir proyecto
         run: |
           unzip -o PesaCafeRevueltaAndroid.zip -d proyecto
           find proyecto -name settings.gradle -print
 
+      - name: Actualizar compatibilidad Android
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          archivos = list(Path("proyecto").rglob("build.gradle"))
+          archivos += list(Path("proyecto").rglob("build.gradle.kts"))
+
+          if not archivos:
+              sys.exit("ERROR: No se encontraron archivos build.gradle.")
+
+          encontrados = 0
+
+          for archivo in archivos:
+              texto = archivo.read_text()
+              original = texto
+
+              texto = re.sub(
+                  r'\bcompileSdkVersion\s+\d+',
+                  'compileSdkVersion 35',
+                  texto
+              )
+              texto = re.sub(
+                  r'\btargetSdkVersion\s+\d+',
+                  'targetSdkVersion 35',
+                  texto
+              )
+              texto = re.sub(
+                  r'\bcompileSdk\s*=\s*\d+',
+                  'compileSdk = 35',
+                  texto
+              )
+              texto = re.sub(
+                  r'\btargetSdk\s*=\s*\d+',
+                  'targetSdk = 35',
+                  texto
+              )
+              texto = re.sub(
+                  r'\bcompileSdk\s+\d+',
+                  'compileSdk 35',
+                  texto
+              )
+              texto = re.sub(
+                  r'\btargetSdk\s+\d+',
+                  'targetSdk 35',
+                  texto
+              )
+
+              if texto != original:
+                  archivo.write_text(texto)
+                  encontrados += 1
+                  print("Actualizado:", archivo)
+              else:
+                  print("Sin cambios:", archivo)
+
+          print("Archivos modificados:", encontrados)
+          PY
+
       - name: Instalar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Compilar APK
+      - name: Instalar componentes Android
         run: |
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)"
           "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-          cd "$(dirname "$(find proyecto -name settings.gradle | head -n 1)")"
+
+      - name: Compilar APK
+        run: |
+          SETTINGS="$(find proyecto -name settings.gradle -o -name settings.gradle.kts | head -n 1)"
+          if [ -z "$SETTINGS" ]; then
+            echo "ERROR: No se encontró settings.gradle."
+            exit 1
+          fi
+
+          cd "$(dirname "$SETTINGS")"
           gradle assembleDebug
 
       - name: Guardar APK para descargar
